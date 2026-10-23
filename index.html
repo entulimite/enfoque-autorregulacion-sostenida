@@ -218,6 +218,47 @@
       text-transform: uppercase;
     }
 
+    /* Panel Resumen Estadístico al finalizar */
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .summary-title {
+      font-size: 0.75rem;
+      color: var(--accent-color);
+      text-transform: uppercase;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .summary-val {
+      font-weight: 700;
+      color: var(--text-color);
+    }
+
+    /* Branding Footer */
+    .brand-lab {
+      font-size: 0.7rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin: 2px 0;
+    }
+
     /* Sección Histórico de Registros */
     .history-card {
       background: var(--card-bg);
@@ -332,6 +373,22 @@
     </div>
   </div>
 
+  <!-- Panel Resumen de la Sesión (Mediana y Moda) -->
+  <div id="summary-card" class="summary-card">
+    <div class="summary-title">Resumen de Sesión</div>
+    <div class="summary-row">
+      <span>Mediana:</span>
+      <span id="summary-median" class="summary-val">-- BPM</span>
+    </div>
+    <div class="summary-row">
+      <span>Moda (frecuente):</span>
+      <span id="summary-mode" class="summary-val">-- BPM</span>
+    </div>
+  </div>
+
+  <!-- Leyenda de Marca Corporativa -->
+  <div class="brand-lab">Powered by @entulimite Lab</div>
+
   <!-- Panel de Histórico de Sesiones -->
   <div class="history-card">
     <div class="history-header">
@@ -359,6 +416,7 @@
 
     let currentBPM = 0;
     let wasOutOfZone = false;
+    let sessionBpms = []; // Almacén de lecturas válidas de la sesión
 
     let redHistory = [];
     const historySize = 60;
@@ -374,6 +432,9 @@
     const zoneStatus = document.getElementById('zone-status');
     const historyList = document.getElementById('history-list');
     const btnClearHistory = document.getElementById('btn-clear-history');
+    const summaryCard = document.getElementById('summary-card');
+    const summaryMedian = document.getElementById('summary-median');
+    const summaryMode = document.getElementById('summary-mode');
     const canvas = document.getElementById('ppg-canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
@@ -436,8 +497,11 @@
         totalMeasuredSeconds = 0;
         wasOutOfZone = false;
         currentBPM = 0;
+        sessionBpms = [];
         redHistory = [];
         lastBeatTime = 0;
+
+        summaryCard.style.display = 'none';
 
         isRunning = true;
         btnToggle.textContent = 'Detener Sesión';
@@ -498,6 +562,7 @@
           if (delta > 400 && delta < 1500) {
             const instantBPM = Math.round(60000 / delta);
             currentBPM = currentBPM === 0 ? instantBPM : Math.round(currentBPM * 0.7 + instantBPM * 0.3);
+            sessionBpms.push(currentBPM);
             updateBiofeedbackUI(currentBPM);
           }
         }
@@ -574,6 +639,29 @@
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
         stream = null;
+      }
+
+      if (sessionBpms.length > 0) {
+        // Cálculo de Mediana
+        const sorted = [...sessionBpms].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        const median = sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+
+        // Cálculo de Moda
+        const frequency = {};
+        let maxFreq = 0;
+        let mode = sorted[0];
+        sessionBpms.forEach(bpm => {
+          frequency[bpm] = (frequency[bpm] || 0) + 1;
+          if (frequency[bpm] > maxFreq) {
+            maxFreq = frequency[bpm];
+            mode = bpm;
+          }
+        });
+
+        summaryMedian.textContent = `${median} BPM`;
+        summaryMode.textContent = `${mode} BPM`;
+        summaryCard.style.display = 'flex';
       }
 
       if (totalMeasuredSeconds > 0) {
